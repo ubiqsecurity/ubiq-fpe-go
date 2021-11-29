@@ -6,7 +6,7 @@ import (
 
 func TestNewFFXKeyLength(t *testing.T) {
 	var err error
-	var key [] byte
+	var key []byte
 
 	var bad_lengths []int = []int{15, 23, 26, 30, 33, 64}
 	var good_lengths []int = []int{16, 24, 32}

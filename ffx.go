@@ -23,18 +23,18 @@ func newFFX(key []byte, twk []byte,
 	maxtxt int, maxtwk int, mintwk int,
 	radix int) (*ffx, error) {
 
-	if (radix < 2 || radix > 36) {
+	if radix < 2 || radix > 36 {
 		return nil, errors.New("unsupported radix")
 	}
 
 	mintxt := int(math.Ceil(float64(6) / math.Log10(float64(radix))))
-	if (mintxt < 2 || mintxt > maxtxt) {
+	if mintxt < 2 || mintxt > maxtxt {
 		return nil, errors.New(
 			"unsupported radix/maximum text length combination")
 	}
 
-	if (mintwk > maxtwk || len(twk) < mintwk ||
-		(maxtwk > 0 && len(twk) > maxtwk)) {
+	if mintwk > maxtwk || len(twk) < mintwk ||
+		(maxtwk > 0 && len(twk) > maxtwk) {
 		return nil, errors.New("invalid tweak length")
 	}
 
