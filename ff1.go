@@ -95,21 +95,16 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	for i := 0; i < 10; i++ {
 		var m int
 
-		if enc {
-			if i%2 == 0 {
-				m = u
-			} else {
-				m = v
-			}
+		if (enc && i%2 == 0) ||
+			(!enc && i%2 == 1) {
+			m = u
+		} else {
+			m = v
+		}
 
+		if enc {
 			Q[len(Q)-b-1] = byte(i)
 		} else {
-			if i%2 == 0 {
-				m = v
-			} else {
-				m = u
-			}
-
 			Q[len(Q)-b-1] = byte(9 - i)
 		}
 
