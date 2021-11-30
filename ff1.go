@@ -39,6 +39,10 @@ func bigIntPow(b *big.Int, e int) *big.Int {
 
 func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	var A, B, Y string
+	var c, y *big.Int
+
+	c = big.NewInt(0)
+	y = big.NewInt(0)
 
 	n := len(X)
 	u := n / 2
@@ -101,7 +105,6 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 			Q[len(Q)-b-1] = byte(9 - i)
 		}
 
-		c := big.NewInt(0)
 		c.SetString(B, this.ctx.radix)
 		nb := c.Bytes()
 		if b <= len(nb) {
@@ -124,7 +127,6 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 			this.ctx.ciph(R[l:l+16], R[l:l+16])
 		}
 
-		y := big.NewInt(0)
 		y.SetBytes(R[:d])
 
 		c.SetString(A, this.ctx.radix)
