@@ -1,6 +1,7 @@
 package ubiq
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"math/big"
@@ -37,7 +38,7 @@ func bigIntPow(b *big.Int, e int) *big.Int {
 }
 
 func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
-	var A, B string
+	var A, B, Y string
 
 	n := len(X)
 	u := n / 2
@@ -74,20 +75,12 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 
 	P[0] = 1
 	P[1] = 2
+	binary.BigEndian.PutUint32(P[2:6], uint32(this.ctx.radix))
 	P[2] = 1
-	P[3] = byte(this.ctx.radix >> 16)
-	P[4] = byte(this.ctx.radix >> 8)
-	P[5] = byte(this.ctx.radix)
 	P[6] = 10
 	P[7] = byte(u)
-	P[8] = byte(n >> 24)
-	P[9] = byte(n >> 16)
-	P[10] = byte(n >> 8)
-	P[11] = byte(n >> 0)
-	P[12] = byte(len(T) >> 24)
-	P[13] = byte(len(T) >> 16)
-	P[14] = byte(len(T) >> 8)
-	P[15] = byte(len(T) >> 0)
+	binary.BigEndian.PutUint32(P[8:12], uint32(n))
+	binary.BigEndian.PutUint32(P[12:16], uint32(len(T)))
 
 	copy(Q[0:], T[:])
 	memset(Q[len(T):len(Q)-(b+1)], 0)
@@ -121,15 +114,14 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		this.ctx.prf(R[0:16], append(P, Q...))
 
 		for j := 1; j < len(R)/16; j++ {
-			memset(R[j*16:(j+1)*16], 0)
-			R[(j+1)*16-4] = byte(j >> 24)
-			R[(j+1)*16-3] = byte(j >> 16)
-			R[(j+1)*16-2] = byte(j >> 8)
-			R[(j+1)*16-1] = byte(j >> 0)
+			l := j * 16
 
-			memxor(R[j*16:(j+1)*16], R[0:16], R[j*16:(j+1)*16])
+			memset(R[l:l+12], 0)
+			binary.BigEndian.PutUint32(R[l+12:l+16], uint32(j))
 
-			this.ctx.ciph(R[j*16:(j+1)*16], R[j*16:(j+1)*16])
+			memxor(R[l:l+16], R[0:16], R[l:l+16])
+
+			this.ctx.ciph(R[l:l+16], R[l:l+16])
 		}
 
 		y := big.NewInt(0)
@@ -152,10 +144,12 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	}
 
 	if enc {
-		return A + B, nil
+		Y = A + B
+	} else {
+		Y = B + A
 	}
 
-	return B + A, nil
+	return Y, nil
 }
 
 func (this *FF1) Encrypt(X string, T []byte) (string, error) {
