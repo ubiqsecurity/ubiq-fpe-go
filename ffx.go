@@ -58,7 +58,8 @@ func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
 	this.len.twk.min = mintwk
 	this.len.twk.max = maxtwk
 
-	this.twk = twk
+	this.twk = make([]byte, len(twk))
+	copy(this.twk[:], twk[:])
 
 	return this, nil
 }
@@ -106,4 +107,18 @@ func memxor(d, s1, s2 []byte) {
 	for i := 0; i < l; i++ {
 		d[i] = s1[i] ^ s2[i]
 	}
+}
+
+func revb(d, s []byte) {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		d[i], d[j] = s[j], s[i]
+	}
+}
+
+func revs(s string) string {
+	r := []rune(s)
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+	return string(r)
 }
