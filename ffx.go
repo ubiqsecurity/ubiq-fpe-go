@@ -21,10 +21,7 @@ type ffx struct {
 	twk []byte
 }
 
-func newFFX(key []byte, twk []byte,
-	maxtxt int, mintwk int, maxtwk int,
-	radix int) (*ffx, error) {
-
+func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
 	if radix < 2 || radix > 36 {
 		return nil, errors.New("unsupported radix")
 	}
@@ -97,7 +94,7 @@ func memset(s []byte, c int) {
 	}
 }
 
-func memxor(d []byte, s1 []byte, s2 []byte) {
+func memxor(d, s1, s2 []byte) {
 	l := len(s1)
 	if len(s2) < l {
 		l = len(s2)
