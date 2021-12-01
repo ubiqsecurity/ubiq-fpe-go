@@ -11,9 +11,7 @@ type FF1 struct {
 	ctx *ffx
 }
 
-func NewFF1(key []byte, twk []byte,
-	mintwk int, maxtwk int,
-	radix int) (*FF1, error) {
+func NewFF1(key, twk []byte, mintwk, maxtwk, radix int) (*FF1, error) {
 	var err error
 
 	this := new(FF1)
@@ -22,26 +20,12 @@ func NewFF1(key []byte, twk []byte,
 	return this, err
 }
 
-func bigIntPow(b *big.Int, e int) *big.Int {
-	r := big.NewInt(0)
-
-	if e > 0 {
-		r.Set(b)
-		e--
-
-		for ; e > 0; e-- {
-			r.Mul(r, b)
-		}
-	}
-
-	return r
-}
-
 func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	var A, B, Y string
-	var c, y *big.Int
+	var c, m, y *big.Int
 
 	c = big.NewInt(0)
+	m = big.NewInt(0)
 	y = big.NewInt(0)
 
 	n := len(X)
@@ -90,13 +74,11 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	memset(Q[len(T):len(Q)-(b+1)], 0)
 
 	for i := 0; i < 10; i++ {
-		var m int
-
 		if (enc && i%2 == 0) ||
 			(!enc && i%2 == 1) {
-			m = u
+			m.SetUint64(uint64(u))
 		} else {
-			m = v
+			m.SetUint64(uint64(v))
 		}
 
 		if enc {
@@ -137,12 +119,12 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		}
 
 		y.SetInt64(int64(this.ctx.radix))
-		y = bigIntPow(y, m)
+		y = y.Exp(y, m, nil)
 
 		c.Mod(c, y)
 
 		A = B
-		B = this.ctx.str(c, m)
+		B = this.ctx.str(c, int(m.Int64()))
 	}
 
 	if enc {
