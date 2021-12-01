@@ -45,11 +45,12 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	R := make([]byte, ((d+15)/16)*16)
 
 	if n < this.ctx.len.txt.min ||
-		n > this.ctx.len.txt.max ||
-		len(T) < this.ctx.len.twk.min ||
+		n > this.ctx.len.txt.max {
+		return "", errors.New("invalid text length")
+	} else if len(T) < this.ctx.len.twk.min ||
 		(this.ctx.len.twk.max > 0 &&
 			len(T) > this.ctx.len.twk.max) {
-		return "", errors.New("invalid text and/or tweak length")
+		return "", errors.New("invalid tweak length")
 	}
 
 	if enc {
@@ -117,7 +118,7 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 			c.Sub(c, y)
 		}
 
-		y.SetInt64(int64(this.ctx.radix))
+		y.SetUint64(uint64(this.ctx.radix))
 		y = y.Exp(y, m, nil)
 
 		c.Mod(c, y)
