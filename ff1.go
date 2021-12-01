@@ -36,12 +36,13 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		float64(this.ctx.radix))*float64(v))+7) / 8
 	d := 4*((b+3)/4) + 4
 
-	P := make([]byte, 16)
-	R := make([]byte, ((d+15)/16)*16)
-
 	if T == nil {
 		T = this.ctx.twk
 	}
+
+	P := make([]byte, 16+((len(T)+b+1+15)/16)*16)
+	Q := P[16:]
+	R := make([]byte, ((d+15)/16)*16)
 
 	if n < this.ctx.len.txt.min ||
 		n > this.ctx.len.txt.max ||
@@ -50,8 +51,6 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 			len(T) > this.ctx.len.twk.max) {
 		return "", errors.New("invalid text and/or tweak length")
 	}
-
-	Q := make([]byte, ((len(T)+b+1+15)/16)*16)
 
 	if enc {
 		A = X[:u]
@@ -96,7 +95,7 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 			copy(Q[len(Q)-len(nb):], nb[:])
 		}
 
-		this.ctx.prf(R[0:16], append(P, Q...))
+		this.ctx.prf(R[0:16], P)
 
 		for j := 1; j < len(R)/16; j++ {
 			l := j * 16
