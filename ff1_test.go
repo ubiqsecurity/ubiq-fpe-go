@@ -9,7 +9,7 @@ func testFF1(t *testing.T, K, T []byte, PT, CT string, r int) {
 		t.FailNow()
 	}
 
-	ff1, err := NewFF1(K, T, 0, 1<<32, r)
+	ff1, err := NewFF1(K, T, 0, 0, r)
 	if err != nil {
 		t.Fatal(err)
 	}
