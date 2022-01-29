@@ -1,3 +1,3 @@
-module ubiq-fpe-go
+module gitlab.com/ubiqsecurity/ubiq-fpe-go
 
 go 1.17
