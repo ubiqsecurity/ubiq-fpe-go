@@ -19,7 +19,7 @@ type ffx struct {
 	radix int
 	// minimum and maximum lengths allowed for
 	// {plain,cipher}text and tweaks
-	len   struct {
+	len struct {
 		txt, twk struct {
 			min, max int
 		}
