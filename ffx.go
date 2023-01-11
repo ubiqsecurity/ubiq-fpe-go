@@ -34,7 +34,7 @@ type ffx struct {
 // @twk may be nil
 // @mintxt is not supplied as it is determined by the radix
 func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
-	if radix < 2 || radix > 36 {
+	if radix < 2 || radix > 52 {
 		return nil, errors.New("unsupported radix")
 	}
 

@@ -1,3 +1,3 @@
-module github.com/ubiqsecurity/ubiq-fpe-go
+module github.com/bdw666/ubiq-fpe-go
 
-go 1.17
+go 1.18
