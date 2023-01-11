@@ -45,8 +45,8 @@ This mapping of user inputs to alphabets defined by the radix is not performed
 by the library and must be done prior to calling the encrypt and after calling
 the decrypt functions.
 
-A radix of up to 36 is supported, and the alphabet for a radix of 36 is
-"0123456789abcdefghijklmnopqrstuvwxyz".
+A radix of up to 62 is supported, and the alphabet for a radix of 62 is
+"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
 
 ### Tweaks
 

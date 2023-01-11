@@ -28,7 +28,7 @@ func NewFF3_1(key, twk []byte, radix int) (*FF3_1, error) {
 	revb(K[:], key[:])
 
 	this := new(FF3_1)
-	this.ctx, err = newFFX(K, twk,
+	this.ctx, err = newFFXForFF3_1(K, twk,
 		// maxlen for ff3-1:
 		// = 2 * log_radix(2**96)
 		// = 2 * log_radix(2**48 * 2**48)
