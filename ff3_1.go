@@ -25,7 +25,7 @@ func NewFF3_1(key, twk []byte, radix int) (*FF3_1, error) {
 
 	// ff3-1 uses the reversed value of the  given key
 	K := make([]byte, len(key))
-	revb(K[:], key[:])
+	revb(K, key)
 
 	this := new(FF3_1)
 	this.ctx, err = newFFX(K, twk,
@@ -53,10 +53,9 @@ func NewFF3_1(key, twk []byte, radix int) (*FF3_1, error) {
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
 func (this *FF3_1) cipher(X string, T []byte, enc bool) (string, error) {
-	var A, B, Y string
-	var c, m, y *big.Int
+	var A, B string
+	var mU, mV, c, y *big.Int
 
-	// Step 1
 	n := len(X)
 	v := n / 2
 	u := n - v
@@ -75,23 +74,20 @@ func (this *FF3_1) cipher(X string, T []byte, enc bool) (string, error) {
 		return "", errors.New("invalid tweak length")
 	}
 
+	mU = big.NewInt(0)
+	mV = big.NewInt(0)
 	c = big.NewInt(0)
-	m = big.NewInt(0)
 	y = big.NewInt(0)
 
 	P := make([]byte, 16)
 	Tw := make([][]byte, 2)
 
-	// Step 2
-	if enc {
-		A = X[:u]
-		B = X[u:]
-	} else {
-		B = X[:u]
-		A = X[u:]
+	A = X[:u]
+	B = X[u:]
+	if !enc {
+		A, B = B, A
 	}
 
-	// Step 3
 	Tw[0] = make([]byte, 4)
 	copy(Tw[0][0:3], T[0:3])
 	Tw[0][3] = T[3] & 0xf0
@@ -100,19 +96,21 @@ func (this *FF3_1) cipher(X string, T []byte, enc bool) (string, error) {
 	copy(Tw[1][0:3], T[4:7])
 	Tw[1][3] = (T[3] & 0x0f) << 4
 
-	for i := 0; i < 8; i++ {
-		// Step 4i
-		W := Tw[0]
-		m.SetUint64(uint64(v))
+	y.SetUint64(uint64(this.ctx.radix))
+	mV.SetUint64(uint64(v))
+	mV.Exp(y, mV, nil)
+	mU.Set(mV)
+	if v != u {
+		mU.Mul(mU, y)
+	}
 
-		if (enc && i%2 == 0) ||
-			(!enc && i%2 == 1) {
-			W = Tw[1]
-			m.SetUint64(uint64(u))
+	for i := 0; i < 8; i++ {
+		if enc == (i%2 == 1) {
+			copy(P, Tw[0])
+		} else {
+			copy(P, Tw[1])
 		}
 
-		// Step 4ii
-		copy(P[:4], W[:4])
 		if enc {
 			P[3] ^= byte(i)
 		} else {
@@ -123,25 +121,14 @@ func (this *FF3_1) cipher(X string, T []byte, enc bool) (string, error) {
 		// to the underlying byte representation of
 		// the integer
 		c.SetString(revs(B), this.ctx.radix)
-		nb := c.Bytes()
-		if 12 <= len(nb) {
-			copy(P[4:], nb[:12])
-		} else {
-			// pad on the left with 0's, if needed
-			memset(P[4:len(P)-len(nb)], 0)
-			copy(P[len(P)-len(nb):], nb[:])
-		}
+		c.FillBytes(P[4:16])
 
-		// Step 4iii
-		revb(P[:], P[:])
-		this.ctx.ciph(P[:], P[:])
-		revb(P[:], P[:])
+		revb(P, P)
+		this.ctx.ciph(P, P)
+		revb(P, P)
 
-		// Step 4iv
-		y.SetBytes(P[:])
-
-		// Step 4v
 		// c = A +/- P
+		y.SetBytes(P)
 		c.SetString(revs(A), this.ctx.radix)
 		if enc {
 			c.Add(c, y)
@@ -149,27 +136,23 @@ func (this *FF3_1) cipher(X string, T []byte, enc bool) (string, error) {
 			c.Sub(c, y)
 		}
 
-		// set y to radix**m
-		y.SetUint64(uint64(this.ctx.radix))
-		y.Exp(y, m, nil)
+		A = B
 
 		// c = A +/- P mod radix**m
-		c.Mod(c, y)
-
-		// Step 4vii
-		A = B
-		// Step 4vi, 4viii
-		B = revs(this.ctx.str(c, int(m.Int64())))
+		if enc == (i%2 == 1) {
+			c.Mod(c, mV)
+			B = revs(this.ctx.str(c, v))
+		} else {
+			c.Mod(c, mU)
+			B = revs(this.ctx.str(c, u))
+		}
 	}
 
-	// Step 5
-	if enc {
-		Y = A + B
-	} else {
-		Y = B + A
+	if !enc {
+		A, B = B, A
 	}
 
-	return Y, nil
+	return A + B, nil
 }
 
 // Encrypt a string @X with the tweak @T

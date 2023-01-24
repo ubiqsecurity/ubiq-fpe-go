@@ -121,14 +121,6 @@ func (this *ffx) str(i *big.Int, c int) string {
 	return strings.Repeat("0", c-len(s)) + s
 }
 
-// fill a slice with the specified value
-// byte slice and int value mimics the C interface
-func memset(s []byte, c int) {
-	for i := 0; i < len(s); i++ {
-		s[i] = byte(c)
-	}
-}
-
 // reverse the bytes in a slice. @d and @s may be the
 // same slice but may not otherwise overlap
 func revb(d, s []byte) {
