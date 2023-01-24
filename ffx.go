@@ -1,6 +1,7 @@
 package ubiq
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
@@ -91,12 +92,8 @@ func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
 func (this *ffx) prf(d, s []byte) error {
 	blockSize := this.block.BlockSize()
 	mode := cipher.NewCBCEncrypter(
-		this.block,
 		// IV is always 0's
-		[]byte{
-			0, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 0,
-		})
+		this.block, bytes.Repeat([]byte{0}, blockSize))
 
 	for i := 0; i < len(s); i += blockSize {
 		mode.CryptBlocks(d, s[i:i+blockSize])
