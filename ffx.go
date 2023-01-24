@@ -129,23 +129,6 @@ func memset(s []byte, c int) {
 	}
 }
 
-// perform a byte-wise XOR of @s1 and @s2, placing the
-// result into @d. the number of bytes is determined by
-// the number of bytes in the shortest slice
-func memxor(d, s1, s2 []byte) {
-	l := len(s1)
-	if len(s2) < l {
-		l = len(s2)
-	}
-	if len(d) < l {
-		l = len(d)
-	}
-
-	for i := 0; i < l; i++ {
-		d[i] = s1[i] ^ s2[i]
-	}
-}
-
 // reverse the bytes in a slice. @d and @s may be the
 // same slice but may not otherwise overlap
 func revb(d, s []byte) {
