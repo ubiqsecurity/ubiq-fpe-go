@@ -99,7 +99,7 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 
 	// this part of Q is static
 	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
-	copy(Q[0:], T[:])
+	copy(Q, T)
 
 	nA.SetString(X[:u], this.ctx.radix)
 	nB.SetString(X[u:], this.ctx.radix)
