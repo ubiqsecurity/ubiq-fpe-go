@@ -1,6 +1,7 @@
 package ubiq
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
@@ -91,12 +92,8 @@ func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
 func (this *ffx) prf(d, s []byte) error {
 	blockSize := this.block.BlockSize()
 	mode := cipher.NewCBCEncrypter(
-		this.block,
 		// IV is always 0's
-		[]byte{
-			0, 0, 0, 0, 0, 0, 0, 0,
-			0, 0, 0, 0, 0, 0, 0, 0,
-		})
+		this.block, bytes.Repeat([]byte{0}, blockSize))
 
 	for i := 0; i < len(s); i += blockSize {
 		mode.CryptBlocks(d, s[i:i+blockSize])
@@ -119,31 +116,6 @@ func (this *ffx) ciph(d, s []byte) error {
 func (this *ffx) str(i *big.Int, c int) string {
 	s := i.Text(this.radix)
 	return strings.Repeat("0", c-len(s)) + s
-}
-
-// fill a slice with the specified value
-// byte slice and int value mimics the C interface
-func memset(s []byte, c int) {
-	for i := 0; i < len(s); i++ {
-		s[i] = byte(c)
-	}
-}
-
-// perform a byte-wise XOR of @s1 and @s2, placing the
-// result into @d. the number of bytes is determined by
-// the number of bytes in the shortest slice
-func memxor(d, s1, s2 []byte) {
-	l := len(s1)
-	if len(s2) < l {
-		l = len(s2)
-	}
-	if len(d) < l {
-		l = len(d)
-	}
-
-	for i := 0; i < l; i++ {
-		d[i] = s1[i] ^ s2[i]
-	}
 }
 
 // reverse the bytes in a slice. @d and @s may be the

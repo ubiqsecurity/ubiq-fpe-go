@@ -1,6 +1,7 @@
 package ubiq
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"math"
@@ -44,19 +45,18 @@ func NewFF1(key, twk []byte, mintwk, maxtwk, radix int) (*FF1, error) {
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
 func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
-	var A, B, Y string
-	var c, m, y *big.Int
+	var nA, nB, mU, mV, y *big.Int
 
-	c = big.NewInt(0)
-	m = big.NewInt(0)
+	nA = big.NewInt(0)
+	nB = big.NewInt(0)
+	mU = big.NewInt(0)
+	mV = big.NewInt(0)
 	y = big.NewInt(0)
 
-	// Step 1
 	n := len(X)
 	u := n / 2
 	v := n - u
 
-	// Step 3, 4
 	b := int(math.Ceil(math.Log2(
 		float64(this.ctx.radix))*float64(v))+7) / 8
 	d := 4*((b+3)/4) + 4
@@ -84,22 +84,12 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		return "", errors.New("invalid tweak length")
 	}
 
-	// Step 2
-	if enc {
-		A = X[:u]
-		B = X[u:]
-	} else {
-		B = X[:u]
-		A = X[u:]
-	}
-
-	// Step 3
 	P[0] = 1
 	P[1] = 2
 	// note that this overwrites index 2, but we aren't interested
 	// in the 8 bits that are placed there (the upper 8 bits of the
 	// radix), so that byte is subsequently overwritten with the
-	// hard-coded value of two (specified by the algorithm)
+	// hard-coded value of one (specified by the algorithm)
 	binary.BigEndian.PutUint32(P[2:6], uint32(this.ctx.radix))
 	P[2] = 1
 	P[6] = 10
@@ -107,94 +97,70 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	binary.BigEndian.PutUint32(P[8:12], uint32(n))
 	binary.BigEndian.PutUint32(P[12:16], uint32(len(T)))
 
-	// Step 6i, partial
-	// these parts of Q are static
-	copy(Q[0:], T[:])
-	memset(Q[len(T):len(Q)-(b+1)], 0)
+	// this part of Q is static
+	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
+	copy(Q, T)
+
+	nA.SetString(X[:u], this.ctx.radix)
+	nB.SetString(X[u:], this.ctx.radix)
+	if !enc {
+		nA, nB = nB, nA
+	}
+
+	y.SetUint64(uint64(this.ctx.radix))
+	mU.SetUint64(uint64(u))
+	mU.Exp(y, mU, nil)
+	mV.Set(mU)
+	if u != v {
+		mV.Mul(mV, y)
+	}
 
 	for i := 0; i < 10; i++ {
-		// Step 6v
-		// m is a big integer for compatibility
-		// with go's big integer interfaces later
-		if (enc && i%2 == 0) ||
-			(!enc && i%2 == 1) {
-			m.SetUint64(uint64(u))
-		} else {
-			m.SetUint64(uint64(v))
-		}
-
-		// Step 6i, partial
 		if enc {
 			Q[len(Q)-b-1] = byte(i)
 		} else {
 			Q[len(Q)-b-1] = byte(9 - i)
 		}
 
-		// convert the numeral string @B to its
-		// underlying representation as a string
-		// of bytes and store it in Q
-		c.SetString(B, this.ctx.radix)
-		nb := c.Bytes()
-		if b <= len(nb) {
-			copy(Q[len(Q)-b:], nb[:])
-		} else {
-			// pad to the left with 0's, if needed
-			memset(Q[len(Q)-b:len(Q)-len(nb)], 0)
-			copy(Q[len(Q)-len(nb):], nb[:])
-		}
-
-		// Step 6ii
+		nB.FillBytes(Q[len(Q)-b:])
 		this.ctx.prf(R[0:16], P)
 
-		// Step 6iii
 		// if R is longer than 16 bytes, fill the 2nd and
 		// subsequent 16 byte blocks with the result of
 		// ciph(R[0:16] ^ 1), ciph(R[0:16] ^2), ...
 		for j := 1; j < len(R)/16; j++ {
 			l := j * 16
+			w := binary.BigEndian.Uint32(R[12:16])
 
-			memset(R[l:l+12], 0)
-			binary.BigEndian.PutUint32(R[l+12:l+16], uint32(j))
-
-			memxor(R[l:l+16], R[0:16], R[l:l+16])
-
-			this.ctx.ciph(R[l:l+16], R[l:l+16])
+			binary.BigEndian.PutUint32(R[12:16], w^uint32(j))
+			this.ctx.ciph(R[l:l+16], R[:16])
+			binary.BigEndian.PutUint32(R[12:16], uint32(w))
 		}
 
-		// Step 6iv
 		// create an integer from the first d bytes of R
 		y.SetBytes(R[:d])
 
-		// Step 6vi
 		// c = A +/- R
-		c.SetString(A, this.ctx.radix)
 		if enc {
-			c.Add(c, y)
+			nA.Add(nA, y)
 		} else {
-			c.Sub(c, y)
+			nA.Sub(nA, y)
 		}
 
-		// y = radix ** m
-		y.SetUint64(uint64(this.ctx.radix))
-		y.Exp(y, m, nil)
+		nA, nB = nB, nA
 
-		// c = (A +/- R) mod radix**m
-		c.Mod(c, y)
-
-		// Step 6viii
-		A = B
-		// Step 6vii, 6ix
-		B = this.ctx.str(c, int(m.Int64()))
+		if enc == (i%2 == 1) {
+			nB.Mod(nB, mV)
+		} else {
+			nB.Mod(nB, mU)
+		}
 	}
 
-	// Step 7
-	if enc {
-		Y = A + B
-	} else {
-		Y = B + A
+	if !enc {
+		nA, nB = nB, nA
 	}
 
-	return Y, nil
+	return this.ctx.str(nA, u) + this.ctx.str(nB, v), nil
 }
 
 // Encrypt a string @X with the tweak @T
