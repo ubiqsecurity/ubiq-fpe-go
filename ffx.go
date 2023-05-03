@@ -31,13 +31,28 @@ type ffx struct {
 	twk []byte
 }
 
+// allocate a new FFX context for FF3-1 (radix limits the maxtxt)
+func newFFXForFF3_1(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
+	// tested up to 62
+	if radix < 2 || radix > 62 {
+		return nil, errors.New("unsupported radix")
+	}
+	// if the radix is so big, that maxtxt > mintxt, it will fail later
+	return newFFX(key, twk, maxtxt, mintwk, maxtwk, radix)
+}
+
+// allocate a new FFX context for FF1
+func newFFXForFF1(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
+	if radix < 2 || radix > 36 {
+		return nil, errors.New("unsupported radix")
+	}
+	return newFFX(key, twk, maxtxt, mintwk, maxtwk, radix)
+}
+
 // allocate a new FFX context
 // @twk may be nil
 // @mintxt is not supplied as it is determined by the radix
 func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
-	if radix < 2 || radix > 36 {
-		return nil, errors.New("unsupported radix")
-	}
 
 	// for both ff1 and ff3-1: radix**minlen >= 1000000
 	//

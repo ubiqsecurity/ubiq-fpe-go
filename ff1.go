@@ -32,7 +32,7 @@ func NewFF1(key, twk []byte, mintwk, maxtwk, radix int) (*FF1, error) {
 	// the maximum allowed input size for FF1 is defined by
 	// the algorithm and hard coded as 2**32
 	this := new(FF1)
-	this.ctx, err = newFFX(key, twk, 1<<32, mintwk, maxtwk, radix)
+	this.ctx, err = newFFXForFF1(key, twk, 1<<32, mintwk, maxtwk, radix)
 
 	return this, err
 }
