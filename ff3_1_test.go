@@ -4,12 +4,12 @@ import (
 	"testing"
 )
 
-func testFF3_1(t *testing.T, K, T []byte, PT, CT string, r int) {
-	if len(PT) != len(CT) {
+func testFF3_1(t *testing.T, K, T []byte, PT, CT string, r int, args ...interface{}) {
+	if len([]rune(PT)) != len([]rune(CT)) {
 		t.FailNow()
 	}
 
-	ff3_1, err := NewFF3_1(K, T, r)
+	ff3_1, err := NewFF3_1(K, T, r, args...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,4 +306,21 @@ func TestFF3_1Ubiq9(t *testing.T) {
 		"89012123456789abcde",
 		"0sxaooj0jjj5qqfomh8",
 		36)
+}
+
+func TestFF3_1UTF8(t *testing.T) {
+	var alphabet string = "abcdefghijklmnopqrstuvwxyzこんにちは世界"
+
+	testFF3_1(t,
+		[]byte{
+			0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+			0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,
+			0xef, 0x43, 0x59, 0xd8, 0xd5, 0x80, 0xaa, 0x4f,
+			0x7f, 0x03, 0x6d, 0x6f, 0x04, 0xfc, 0x6a, 0x94,
+		},
+		[]byte{
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		},
+		"こんにちは世界", "lscveにr",
+		len([]rune(alphabet)), alphabet)
 }

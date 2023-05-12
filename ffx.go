@@ -7,7 +7,6 @@ import (
 	"errors"
 	"math"
 	"math/big"
-	"strings"
 )
 
 // common structure used by fpe algorithms
@@ -18,6 +17,8 @@ type ffx struct {
 	block cipher.Block
 
 	radix int
+	ralph []rune
+
 	// minimum and maximum lengths allowed for
 	// {plain,cipher}text and tweaks
 	len struct {
@@ -34,8 +35,17 @@ type ffx struct {
 // allocate a new FFX context
 // @twk may be nil
 // @mintxt is not supplied as it is determined by the radix
-func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
-	if radix < 2 || radix > 36 {
+func newFFX(key, twk []byte,
+	maxtxt, mintwk, maxtwk, radix int,
+	args ...interface{}) (*ffx, error) {
+	var alpha string = "0123456789abcdefghijklmnopqrstuvwxyz"
+	var ralph []rune = []rune(alpha)
+
+	if len(args) > 0 {
+		ralph = []rune(args[0].(string))
+	}
+
+	if radix < 2 || radix > len(ralph) {
 		return nil, errors.New("unsupported radix")
 	}
 
@@ -72,6 +82,7 @@ func newFFX(key, twk []byte, maxtxt, mintwk, maxtwk, radix int) (*ffx, error) {
 	this.block = block
 
 	this.radix = radix
+	this.ralph = ralph
 
 	this.len.txt.min = mintxt
 	this.len.txt.max = maxtxt
@@ -111,11 +122,61 @@ func (this *ffx) ciph(d, s []byte) error {
 	return this.prf(d, s[0:16])
 }
 
+func bigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
+	var n *big.Int = big.NewInt(0)
+	var r *big.Int = big.NewInt(0)
+	var t *big.Int = big.NewInt(int64(radix))
+
+	var R []rune
+	var i int
+
+	n.Set(_n)
+	for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
+		n.DivMod(n, t, r)
+		R = append(R, ralph[r.Int64()])
+	}
+
+	for ; i < l; i++ {
+		R = append(R, ralph[0])
+	}
+
+	return revr(R)
+}
+
 // convert a big integer to a string in the specified radix,
 // padding the output to the left with 0's
-func (this *ffx) str(i *big.Int, c int) string {
-	s := i.Text(this.radix)
-	return strings.Repeat("0", c-len(s)) + s
+func BigIntToString(radix int, alpha string, _n *big.Int, l int) string {
+	return string(bigIntToRunes(radix, []rune(alpha), _n, l))
+}
+
+func runesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
+	var m *big.Int = big.NewInt(1)
+	var t *big.Int = big.NewInt(0)
+
+	n.SetInt64(0)
+
+	for _, r := range revr(s) {
+		// n += (m * i)
+		for i, _ := range ralph {
+			if ralph[i] == r {
+				t.SetInt64(int64(i))
+				break
+			}
+		}
+
+		t.Mul(t, m)
+		n.Add(n, t)
+
+		// m *= rad
+		t.SetInt64(int64(radix))
+		m.Mul(m, t)
+	}
+
+	return n
+}
+
+func StringToBigInt(n *big.Int, radix int, alpha, s string) *big.Int {
+	return runesToBigInt(n, radix, []rune(alpha), []rune(s))
 }
 
 // reverse the bytes in a slice. @d and @s may be the
@@ -128,9 +189,12 @@ func revb(d, s []byte) {
 
 // reverse a string
 func revs(s string) string {
-	r := []rune(s)
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+	return string(revr([]rune(s)))
+}
+
+func revr(r []rune) []rune {
+	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
 		r[i], r[j] = r[j], r[i]
 	}
-	return string(r)
+	return r
 }
