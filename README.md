@@ -45,8 +45,11 @@ This mapping of user inputs to alphabets defined by the radix is not performed
 by the library and must be done prior to calling the encrypt and after calling
 the decrypt functions.
 
-A radix of up to 36 is supported, and the alphabet for a radix of 36 is
-"0123456789abcdefghijklmnopqrstuvwxyz".
+By default, a radix of up to 36 is supported, and the alphabet for a radix of
+36 is "0123456789abcdefghijklmnopqrstuvwxyz". However, he interfaces allow the
+caller to specify a custom alphabet that differs from the default. Using a
+custom alphabet, radixes up to the number of characters in the alphabet can be
+supported. Note that custom alphabets must not contain duplicate characters.
 
 ### Tweaks
 

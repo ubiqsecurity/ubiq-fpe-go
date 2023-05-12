@@ -25,14 +25,18 @@ type FF1 struct {
 // by the algorithm. both may be set to 0 to indicate that there is no
 // limit on the tweak size
 //
-// @radix species the radix of the input/output data
-func NewFF1(key, twk []byte, mintwk, maxtwk, radix int) (*FF1, error) {
+// @radix specifies the radix of the input/output data
+//
+// the function also accepts an optional argument:
+// @alpha is a string containing the alphabet for numerical conversions
+func NewFF1(key, twk []byte, mintwk, maxtwk, radix int, args ...interface{}) (
+	*FF1, error) {
 	var err error
 
 	// the maximum allowed input size for FF1 is defined by
 	// the algorithm and hard coded as 2**32
 	this := new(FF1)
-	this.ctx, err = newFFX(key, twk, 1<<32, mintwk, maxtwk, radix)
+	this.ctx, err = newFFX(key, twk, 1<<32, mintwk, maxtwk, radix, args...)
 
 	return this, err
 }
@@ -53,7 +57,8 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	mV = big.NewInt(0)
 	y = big.NewInt(0)
 
-	n := len(X)
+	rX := []rune(X)
+	n := len(rX)
 	u := n / 2
 	v := n - u
 
@@ -101,8 +106,8 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
 	copy(Q, T)
 
-	nA.SetString(X[:u], this.ctx.radix)
-	nB.SetString(X[u:], this.ctx.radix)
+	runesToBigInt(nA, this.ctx.radix, this.ctx.ralph, rX[:u])
+	runesToBigInt(nB, this.ctx.radix, this.ctx.ralph, rX[u:])
 	if !enc {
 		nA, nB = nB, nA
 	}
@@ -160,7 +165,8 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		nA, nB = nB, nA
 	}
 
-	return this.ctx.str(nA, u) + this.ctx.str(nB, v), nil
+	return string(bigIntToRunes(this.ctx.radix, this.ctx.ralph, nA, u)) +
+		string(bigIntToRunes(this.ctx.radix, this.ctx.ralph, nB, v)), nil
 }
 
 // Encrypt a string @X with the tweak @T
