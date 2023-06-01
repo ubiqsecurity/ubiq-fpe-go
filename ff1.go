@@ -48,7 +48,7 @@ func NewFF1(key, twk []byte, mintwk, maxtwk, radix int, args ...interface{}) (
 //
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
-func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
+func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	var nA, nB, mU, mV, y *big.Int
 
 	nA = big.NewInt(0)
@@ -57,8 +57,7 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	mV = big.NewInt(0)
 	y = big.NewInt(0)
 
-	rX := []rune(X)
-	n := len(rX)
+	n := len(X)
 	u := n / 2
 	v := n - u
 
@@ -82,11 +81,11 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 
 	if n < this.ctx.len.txt.min ||
 		n > this.ctx.len.txt.max {
-		return "", errors.New("invalid text length")
+		return nil, errors.New("invalid text length")
 	} else if len(T) < this.ctx.len.twk.min ||
 		(this.ctx.len.twk.max > 0 &&
 			len(T) > this.ctx.len.twk.max) {
-		return "", errors.New("invalid tweak length")
+		return nil, errors.New("invalid tweak length")
 	}
 
 	P[0] = 1
@@ -106,8 +105,8 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
 	copy(Q, T)
 
-	runesToBigInt(nA, this.ctx.radix, this.ctx.ralph, rX[:u])
-	runesToBigInt(nB, this.ctx.radix, this.ctx.ralph, rX[u:])
+	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, X[:u])
+	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, X[u:])
 	if !enc {
 		nA, nB = nB, nA
 	}
@@ -165,20 +164,40 @@ func (this *FF1) cipher(X string, T []byte, enc bool) (string, error) {
 		nA, nB = nB, nA
 	}
 
-	return string(bigIntToRunes(this.ctx.radix, this.ctx.ralph, nA, u)) +
-		string(bigIntToRunes(this.ctx.radix, this.ctx.ralph, nB, v)), nil
+	return append(
+			BigIntToRunes(
+				this.ctx.radix, this.ctx.ralph, nA, u),
+			BigIntToRunes(
+				this.ctx.radix, this.ctx.ralph, nB, v)...),
+		nil
+}
+
+func (this *FF1) EncryptRunes(X []rune, T []byte) ([]rune, error) {
+	return this.cipher(X, T, true)
 }
 
 // Encrypt a string @X with the tweak @T
 //
 // @T may be nil, in which case the default tweak will be used
-func (this *FF1) Encrypt(X string, T []byte) (string, error) {
-	return this.cipher(X, T, true)
+func (this *FF1) Encrypt(X string, T []byte) (Y string, err error) {
+	Yr, err := this.EncryptRunes([]rune(X), T)
+	if err == nil {
+		Y = string(Yr)
+	}
+	return Y, err
+}
+
+func (this *FF1) DecryptRunes(X []rune, T []byte) ([]rune, error) {
+	return this.cipher(X, T, false)
 }
 
 // Decrypt a string @X with the tweak @T
 //
 // @T may be nil, in which case the default tweak will be used
-func (this *FF1) Decrypt(X string, T []byte) (string, error) {
-	return this.cipher(X, T, false)
+func (this *FF1) Decrypt(X string, T []byte) (Y string, err error) {
+	Yr, err := this.DecryptRunes([]rune(X), T)
+	if err == nil {
+		Y = string(Yr)
+	}
+	return Y, err
 }
