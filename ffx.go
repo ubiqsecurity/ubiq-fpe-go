@@ -122,7 +122,9 @@ func (this *ffx) ciph(d, s []byte) error {
 	return this.prf(d, s[0:16])
 }
 
-func bigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
+// convert a big integer to an array of runes in the specified radix,
+// padding the output to the left with 0's
+func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
 	var n *big.Int = big.NewInt(0)
 	var r *big.Int = big.NewInt(0)
 	var t *big.Int = big.NewInt(int64(radix))
@@ -143,13 +145,7 @@ func bigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
 	return revr(R)
 }
 
-// convert a big integer to a string in the specified radix,
-// padding the output to the left with 0's
-func BigIntToString(radix int, alpha string, _n *big.Int, l int) string {
-	return string(bigIntToRunes(radix, []rune(alpha), _n, l))
-}
-
-func runesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
+func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
 	var m *big.Int = big.NewInt(1)
 	var t *big.Int = big.NewInt(0)
 
@@ -175,21 +171,12 @@ func runesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
 	return n
 }
 
-func StringToBigInt(n *big.Int, radix int, alpha, s string) *big.Int {
-	return runesToBigInt(n, radix, []rune(alpha), []rune(s))
-}
-
 // reverse the bytes in a slice. @d and @s may be the
 // same slice but may not otherwise overlap
 func revb(d, s []byte) {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		d[i], d[j] = s[j], s[i]
 	}
-}
-
-// reverse a string
-func revs(s string) string {
-	return string(revr([]rune(s)))
 }
 
 func revr(r []rune) []rune {
