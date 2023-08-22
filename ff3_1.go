@@ -56,8 +56,7 @@ func NewFF3_1(key, twk []byte, radix int, args ...interface{}) (*FF3_1, error) {
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
 func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
-	var A, B []rune
-	var mU, mV, c, y *big.Int
+	var nA, nB, mU, mV, y *big.Int
 
 	n := len(X)
 	v := n / 2
@@ -77,19 +76,14 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		return nil, errors.New("invalid tweak length")
 	}
 
+	nA = big.NewInt(0)
+	nB = big.NewInt(0)
 	mU = big.NewInt(0)
 	mV = big.NewInt(0)
-	c = big.NewInt(0)
 	y = big.NewInt(0)
 
 	P := make([]byte, 16)
 	Tw := make([][]byte, 2)
-
-	A = X[:u]
-	B = X[u:]
-	if !enc {
-		A, B = B, A
-	}
 
 	Tw[0] = make([]byte, 4)
 	copy(Tw[0][0:3], T[0:3])
@@ -107,24 +101,28 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		mU.Mul(mU, y)
 	}
 
-	for i := 0; i < 8; i++ {
-		if enc == (i%2 == 1) {
-			copy(P, Tw[0])
-		} else {
-			copy(P, Tw[1])
-		}
+	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, revr(X[:u]))
+	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, revr(X[u:]))
+	if !enc {
+		nA, nB = nB, nA
+		mU, mV = mV, mU
+
+		Tw[0], Tw[1] = Tw[1], Tw[0]
+	}
+
+	for i := 1; i <= 8; i++ {
+		copy(P, Tw[i % 2])
 
 		if enc {
-			P[3] ^= byte(i)
+			P[3] ^= byte(i - 1)
 		} else {
-			P[3] ^= byte(7 - i)
+			P[3] ^= byte(8 - i)
 		}
 
-		// reverse B and export the numeral string
+		// export B's numeral string
 		// to the underlying byte representation of
 		// the integer
-		RunesToBigInt(c, this.ctx.radix, this.ctx.ralph, revr(B))
-		c.FillBytes(P[4:16])
+		nB.FillBytes(P[4:16])
 
 		revb(P, P)
 		this.ctx.ciph(P, P)
@@ -132,32 +130,27 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 
 		// c = A +/- P
 		y.SetBytes(P)
-		RunesToBigInt(c, this.ctx.radix, this.ctx.ralph, revr(A))
 		if enc {
-			c.Add(c, y)
+			nA.Add(nA, y)
 		} else {
-			c.Sub(c, y)
+			nA.Sub(nA, y)
 		}
 
-		A = B
+		nA, nB = nB, nA
 
 		// c = A +/- P mod radix**m
-		if enc == (i%2 == 1) {
-			c.Mod(c, mV)
-			B = revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, c, v))
-		} else {
-			c.Mod(c, mU)
-			B = revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, c, u))
-		}
+		nB.Mod(nB, mU);
+		mU, mV = mV, mU
 	}
 
 	if !enc {
-		A, B = B, A
+		nA, nB = nB, nA
 	}
 
-	return append(A, B...), nil
+	return append(
+		revr(BigIntToRunes(this.ctx.radix, this.ctx.ralph, nA, u)),
+		revr(BigIntToRunes(this.ctx.radix, this.ctx.ralph, nB, v))...),
+	nil
 }
 
 func (this *FF3_1) EncryptRunes(X []rune, T []byte) ([]rune, error) {
