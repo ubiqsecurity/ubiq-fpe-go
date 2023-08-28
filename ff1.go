@@ -105,18 +105,19 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
 	copy(Q, T)
 
-	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, X[:u])
-	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, X[u:])
-	if !enc {
-		nA, nB = nB, nA
-	}
-
 	y.SetUint64(uint64(this.ctx.radix))
 	mU.SetUint64(uint64(u))
 	mU.Exp(y, mU, nil)
 	mV.Set(mU)
 	if u != v {
 		mV.Mul(mV, y)
+	}
+
+	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, X[:u])
+	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, X[u:])
+	if !enc {
+		nA, nB = nB, nA
+		mU, mV = mV, mU
 	}
 
 	for i := 0; i < 10; i++ {
@@ -153,11 +154,8 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 
 		nA, nB = nB, nA
 
-		if enc == (i%2 == 1) {
-			nB.Mod(nB, mV)
-		} else {
-			nB.Mod(nB, mU)
-		}
+		nB.Mod(nB, mU)
+		mU, mV = mV, mU
 	}
 
 	if !enc {

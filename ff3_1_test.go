@@ -61,7 +61,7 @@ func TestFF3_1ACVP2(t *testing.T) {
 		10)
 }
 
-func TestFF3_1ACV3(t *testing.T) {
+func TestFF3_1ACVP3(t *testing.T) {
 	testFF3_1(t,
 		[]byte{
 			0xf0, 0x09, 0x75, 0x94, 0x80, 0x5c, 0xf9, 0xb8,
