@@ -16,4 +16,4 @@ test:
         - apt -y update
         - apt -y install git golang
     script:
-        - go test -v
+        - go test -v -bench=.
