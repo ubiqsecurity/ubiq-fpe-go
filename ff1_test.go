@@ -319,7 +319,10 @@ func TestFF1UTF8(t *testing.T) {
 func benchmarkFF1(
 	b *testing.B, f func(*FF1, string, []byte) (string, error),
 	K, T []byte, INP, OUT string, r int, args ...interface{}) {
-	ff1, _ := NewFF1(K, T, 0, 0, r, args...)
+	ff1, err := NewFF1(K, T, 0, 0, r, args...)
+	if err != nil {
+		panic(err)
+	}
 
 	res, err := f(ff1, INP, T)
 	if err != nil {
