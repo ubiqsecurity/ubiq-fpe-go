@@ -9,6 +9,10 @@ import (
 	"math/big"
 )
 
+const (
+	default_alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
 // common structure used by fpe algorithms
 type ffx struct {
 	// aes 128, 192, or 256. depends on key size
@@ -38,7 +42,7 @@ type ffx struct {
 func newFFX(key, twk []byte,
 	maxtxt, mintwk, maxtwk, radix int,
 	args ...interface{}) (*ffx, error) {
-	var alpha string = "0123456789abcdefghijklmnopqrstuvwxyz"
+	var alpha string = default_alphabet
 	var ralph []rune = []rune(alpha)
 
 	if len(args) > 0 {
@@ -125,17 +129,37 @@ func (this *ffx) ciph(d, s []byte) error {
 // convert a big integer to an array of runes in the specified radix,
 // padding the output to the left with 0's
 func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
-	var n *big.Int = big.NewInt(0)
-	var r *big.Int = big.NewInt(0)
-	var t *big.Int = big.NewInt(int64(radix))
-
 	var R []rune
 	var i int
 
-	n.Set(_n)
-	for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
-		n.DivMod(n, t, r)
-		R = append(R, ralph[r.Int64()])
+
+	if radix <= len(default_alphabet) {
+		s := _n.Text(radix)
+
+		R = make([]rune, len(s))
+		for i, _ = range s {
+			var j int
+
+			for j, _ = range default_alphabet {
+				if s[i] == default_alphabet[j] {
+					break
+				}
+			}
+
+			R[len(R) - i - 1] = ralph[j]
+		}
+
+		i = len(s)
+	} else {
+		var n *big.Int = big.NewInt(0)
+		var r *big.Int = big.NewInt(0)
+		var t *big.Int = big.NewInt(int64(radix))
+
+		n.Set(_n)
+		for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
+			n.DivMod(n, t, r)
+			R = append(R, ralph[r.Int64()])
+		}
 	}
 
 	for ; i < l; i++ {
@@ -146,26 +170,44 @@ func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
 }
 
 func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
-	var m *big.Int = big.NewInt(1)
-	var t *big.Int = big.NewInt(0)
+	if radix <= len(default_alphabet) {
+		b := make([]byte, len(s))
 
-	n.SetInt64(0)
+		for i, _ := range s {
+			var j int
 
-	for _, r := range revr(s) {
-		// n += (m * i)
-		for i, _ := range ralph {
-			if ralph[i] == r {
-				t.SetInt64(int64(i))
-				break
+			for j, _ = range ralph {
+				if s[i] == ralph[j] {
+					break
+				}
 			}
+
+			b[i] = default_alphabet[j]
 		}
 
-		t.Mul(t, m)
-		n.Add(n, t)
+		n.SetString(string(b), radix)
+	} else {
+		var m *big.Int = big.NewInt(1)
+		var t *big.Int = big.NewInt(0)
 
-		// m *= rad
-		t.SetInt64(int64(radix))
-		m.Mul(m, t)
+		n.SetInt64(0)
+
+		for _, r := range revr(s) {
+			// n += (m * i)
+			for i, _ := range ralph {
+				if ralph[i] == r {
+					t.SetInt64(int64(i))
+					break
+				}
+			}
+
+			t.Mul(t, m)
+			n.Add(n, t)
+
+			// m *= rad
+			t.SetInt64(int64(radix))
+			m.Mul(m, t)
+		}
 	}
 
 	return n
@@ -174,14 +216,23 @@ func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
 // reverse the bytes in a slice. @d and @s may be the
 // same slice but may not otherwise overlap
 func revb(d, s []byte) {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+	var i, j int
+	for i, j = 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		d[i], d[j] = s[j], s[i]
+	}
+	if i == j {
+		d[i] = s[j]
 	}
 }
 
-func revr(r []rune) []rune {
-	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
-		r[i], r[j] = r[j], r[i]
+func revr(s []rune) []rune {
+	var i, j int
+	d := make([]rune, len(s))
+	for i, j = 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		d[i], d[j] = s[j], s[i]
 	}
-	return r
+	if i == j {
+		d[i] = s[j]
+	}
+	return d
 }
