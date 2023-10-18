@@ -319,6 +319,8 @@ func TestFF1UTF8(t *testing.T) {
 func benchmarkFF1(
 	b *testing.B, f func(*FF1, string, []byte) (string, error),
 	K, T []byte, INP, OUT string, r int, args ...interface{}) {
+	b.StopTimer()
+
 	ff1, err := NewFF1(K, T, 0, 0, r, args...)
 	if err != nil {
 		panic(err)
@@ -330,6 +332,8 @@ func benchmarkFF1(
 	} else if res != OUT {
 		panic(res + " != " + OUT)
 	}
+
+	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
 		f(ff1, INP, T)
