@@ -132,11 +132,12 @@ func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
 	var R []rune
 	var i int
 
+	R = make([]rune, 0, l)
 
 	if radix <= len(default_alphabet) {
 		s := _n.Text(radix)
 
-		R = make([]rune, len(s), l)
+		R = R[:len(s)]
 
 		for i, _ = range s {
 			var j int
@@ -155,8 +156,6 @@ func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
 		var n *big.Int = big.NewInt(0)
 		var r *big.Int = big.NewInt(0)
 		var t *big.Int = big.NewInt(int64(radix))
-
-		R = make([]rune, 0, l)
 
 		n.Set(_n)
 		for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
