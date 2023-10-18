@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	default_alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	default_alphabet_str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
+
+var default_alphabet, _ = newAlphabet(default_alphabet_str)
 
 // common structure used by fpe algorithms
 type ffx struct {
@@ -20,8 +22,7 @@ type ffx struct {
 	// when the encryption is actually performed
 	block cipher.Block
 
-	radix int
-	ralph []rune
+	alpha Alphabet
 
 	// minimum and maximum lengths allowed for
 	// {plain,cipher}text and tweaks
@@ -42,7 +43,7 @@ type ffx struct {
 func newFFX(key, twk []byte,
 	maxtxt, mintwk, maxtwk, radix int,
 	args ...interface{}) (*ffx, error) {
-	var alpha string = default_alphabet
+	var alpha string = default_alphabet_str
 	var ralph []rune = []rune(alpha)
 
 	if len(args) > 0 {
@@ -52,6 +53,7 @@ func newFFX(key, twk []byte,
 	if radix < 2 || radix > len(ralph) {
 		return nil, errors.New("unsupported radix")
 	}
+	ralph = ralph[:radix]
 
 	// for both ff1 and ff3-1: radix**minlen >= 1000000
 	//
@@ -85,8 +87,7 @@ func newFFX(key, twk []byte,
 
 	this.block = block
 
-	this.radix = radix
-	this.ralph = ralph
+	this.alpha, _ = newAlphabet(string(ralph))
 
 	this.len.txt.min = mintxt
 	this.len.txt.max = maxtxt
@@ -128,66 +129,49 @@ func (this *ffx) ciph(d, s []byte) error {
 
 // convert a big integer to an array of runes in the specified radix,
 // padding the output to the left with 0's
-func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
+func BigIntToRunes(alpha Alphabet, _n *big.Int, l int) []rune {
 	var R []rune
 	var i int
 
 	R = make([]rune, 0, l)
 
-	if radix <= len(default_alphabet) {
-		s := _n.Text(radix)
+	if alpha.Len() <= default_alphabet.Len() {
+		s := _n.Text(alpha.Len())
 
 		R = R[:len(s)]
 
-		for i, _ = range s {
-			var j int
-
-			for j, _ = range default_alphabet {
-				if s[i] == default_alphabet[j] {
-					break
-				}
-			}
-
-			R[len(R) - i - 1] = ralph[j]
+		for i = 0; i < len(s); i++ {
+			R[len(R)-i-1] = alpha.ValAt(
+				default_alphabet.PosOf(rune(s[i])))
 		}
-
-		i = len(s)
 	} else {
 		var n *big.Int = big.NewInt(0)
 		var r *big.Int = big.NewInt(0)
-		var t *big.Int = big.NewInt(int64(radix))
+		var t *big.Int = big.NewInt(int64(alpha.Len()))
 
 		n.Set(_n)
 		for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
 			n.DivMod(n, t, r)
-			R = append(R, ralph[r.Int64()])
+			R = append(R, alpha.ValAt(int(r.Int64())))
 		}
 	}
 
 	for ; i < l; i++ {
-		R = append(R, ralph[0])
+		R = append(R, alpha.ValAt(0))
 	}
 
 	return revr(R)
 }
 
-func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
-	if radix <= len(default_alphabet) {
+func RunesToBigInt(n *big.Int, alpha Alphabet, s []rune) *big.Int {
+	if alpha.Len() < default_alphabet.Len() {
 		b := make([]byte, len(s))
 
 		for i, _ := range s {
-			var j int
-
-			for j, _ = range ralph {
-				if s[i] == ralph[j] {
-					break
-				}
-			}
-
-			b[i] = default_alphabet[j]
+			b[i] = byte(default_alphabet.ValAt(alpha.PosOf(s[i])))
 		}
 
-		n.SetString(string(b), radix)
+		n.SetString(string(b), alpha.Len())
 	} else {
 		var m *big.Int = big.NewInt(1)
 		var t *big.Int = big.NewInt(0)
@@ -196,18 +180,13 @@ func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
 
 		for _, r := range revr(s) {
 			// n += (m * i)
-			for i, _ := range ralph {
-				if ralph[i] == r {
-					t.SetInt64(int64(i))
-					break
-				}
-			}
+			t.SetInt64(int64(alpha.PosOf(r)))
 
 			t.Mul(t, m)
 			n.Add(n, t)
 
 			// m *= rad
-			t.SetInt64(int64(radix))
+			t.SetInt64(int64(alpha.Len()))
 			m.Mul(m, t)
 		}
 	}

@@ -93,7 +93,7 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	copy(Tw[1][0:3], T[4:7])
 	Tw[1][3] = (T[3] & 0x0f) << 4
 
-	y.SetUint64(uint64(this.ctx.radix))
+	y.SetUint64(uint64(this.ctx.alpha.Len()))
 	mV.SetUint64(uint64(v))
 	mV.Exp(y, mV, nil)
 	mU.Set(mV)
@@ -101,8 +101,8 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		mU.Mul(mU, y)
 	}
 
-	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, revr(X[:u]))
-	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, revr(X[u:]))
+	RunesToBigInt(nA, this.ctx.alpha, revr(X[:u]))
+	RunesToBigInt(nB, this.ctx.alpha, revr(X[u:]))
 	if !enc {
 		nA, nB = nB, nA
 		mU, mV = mV, mU
@@ -148,10 +148,8 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	}
 
 	return append(
-			revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nA, u)),
-			revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nB, v))...),
+			revr(BigIntToRunes(this.ctx.alpha, nA, u)),
+			revr(BigIntToRunes(this.ctx.alpha, nB, v))...),
 		nil
 }
 
