@@ -15,7 +15,7 @@ type Alphabet struct {
 	by_val []letter
 }
 
-func newAlphabet(s string) (Alphabet, error) {
+func NewAlphabet(s string) (Alphabet, error) {
 	self := Alphabet{
 		by_pos: []rune(s),
 	}

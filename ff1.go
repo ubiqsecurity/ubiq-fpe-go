@@ -115,8 +115,8 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		mV.Mul(mV, y)
 	}
 
-	RunesToBigInt(nA, this.ctx.alpha, X[:u])
-	RunesToBigInt(nB, this.ctx.alpha, X[u:])
+	RunesToBigInt(nA, &this.ctx.alpha, X[:u])
+	RunesToBigInt(nB, &this.ctx.alpha, X[u:])
 	if !enc {
 		nA, nB = nB, nA
 		mU, mV = mV, mU
@@ -165,8 +165,8 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	}
 
 	return append(
-			BigIntToRunes(this.ctx.alpha, nA, u),
-			BigIntToRunes(this.ctx.alpha, nB, v)...),
+			BigIntToRunes(&this.ctx.alpha, nA, u),
+			BigIntToRunes(&this.ctx.alpha, nB, v)...),
 		nil
 }
 

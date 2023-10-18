@@ -13,7 +13,7 @@ const (
 	default_alphabet_str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
-var default_alphabet, _ = newAlphabet(default_alphabet_str)
+var default_alphabet, _ = NewAlphabet(default_alphabet_str)
 
 // common structure used by fpe algorithms
 type ffx struct {
@@ -87,7 +87,7 @@ func newFFX(key, twk []byte,
 
 	this.block = block
 
-	this.alpha, _ = newAlphabet(string(ralph))
+	this.alpha, _ = NewAlphabet(string(ralph))
 
 	this.len.txt.min = mintxt
 	this.len.txt.max = maxtxt
@@ -129,7 +129,7 @@ func (this *ffx) ciph(d, s []byte) error {
 
 // convert a big integer to an array of runes in the specified radix,
 // padding the output to the left with 0's
-func BigIntToRunes(alpha Alphabet, _n *big.Int, l int) []rune {
+func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 	var R []rune
 	var i int
 
@@ -163,7 +163,7 @@ func BigIntToRunes(alpha Alphabet, _n *big.Int, l int) []rune {
 	return revr(R)
 }
 
-func RunesToBigInt(n *big.Int, alpha Alphabet, s []rune) *big.Int {
+func RunesToBigInt(n *big.Int, alpha *Alphabet, s []rune) *big.Int {
 	if alpha.Len() < default_alphabet.Len() {
 		b := make([]byte, len(s))
 
