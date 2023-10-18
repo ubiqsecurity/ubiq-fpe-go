@@ -5,12 +5,20 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	defaultAlphabetStr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
+var defaultAlphabet, _ = NewAlphabet(defaultAlphabetStr)
+
 type letter struct {
 	val rune
 	pos int
 }
 
 type Alphabet struct {
+	def bool
+
 	by_pos []rune
 	by_val []letter
 }
@@ -39,11 +47,18 @@ func NewAlphabet(s string) (Alphabet, error) {
 		}
 	}
 
+	self.def = (len(s) <= len(defaultAlphabetStr)) &&
+		(s == defaultAlphabetStr[:len(s)])
+
 	return self, nil
 }
 
 func (self *Alphabet) Len() int {
 	return len(self.by_pos)
+}
+
+func (self *Alphabet) IsDef() bool {
+	return self.def
 }
 
 func (self *Alphabet) PosOf(c rune) int {

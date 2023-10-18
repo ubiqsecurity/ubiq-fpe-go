@@ -9,12 +9,6 @@ import (
 	"math/big"
 )
 
-const (
-	default_alphabet_str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-)
-
-var default_alphabet, _ = NewAlphabet(default_alphabet_str)
-
 // common structure used by fpe algorithms
 type ffx struct {
 	// aes 128, 192, or 256. depends on key size
@@ -43,13 +37,12 @@ type ffx struct {
 func newFFX(key, twk []byte,
 	maxtxt, mintwk, maxtwk, radix int,
 	args ...interface{}) (*ffx, error) {
-	var alpha string = default_alphabet_str
-	var ralph []rune = []rune(alpha)
-
+	alpha := defaultAlphabetStr
 	if len(args) > 0 {
-		ralph = []rune(args[0].(string))
+		alpha = args[0].(string)
 	}
 
+	ralph := []rune(alpha)
 	if radix < 2 || radix > len(ralph) {
 		return nil, errors.New("unsupported radix")
 	}
@@ -135,14 +128,18 @@ func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 
 	R = make([]rune, 0, l)
 
-	if alpha.Len() <= default_alphabet.Len() {
+	if alpha.Len() <= defaultAlphabet.Len() {
 		s := _n.Text(alpha.Len())
 
 		R = R[:len(s)]
 
 		for i = 0; i < len(s); i++ {
-			R[len(R)-i-1] = alpha.ValAt(
-				default_alphabet.PosOf(rune(s[i])))
+			if alpha.IsDef() {
+				R[len(R)-i-1] = rune(s[i])
+			} else {
+				R[len(R)-i-1] = alpha.ValAt(
+					defaultAlphabet.PosOf(rune(s[i])))
+			}
 		}
 	} else {
 		var n *big.Int = big.NewInt(0)
@@ -164,11 +161,16 @@ func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 }
 
 func RunesToBigInt(n *big.Int, alpha *Alphabet, s []rune) *big.Int {
-	if alpha.Len() < default_alphabet.Len() {
+	if alpha.Len() <= defaultAlphabet.Len() {
 		b := make([]byte, len(s))
 
 		for i, _ := range s {
-			b[i] = byte(default_alphabet.ValAt(alpha.PosOf(s[i])))
+			if alpha.IsDef() {
+				b[i] = byte(s[i])
+			} else {
+				b[i] = byte(defaultAlphabet.ValAt(
+					alpha.PosOf(s[i])))
+			}
 		}
 
 		n.SetString(string(b), alpha.Len())
