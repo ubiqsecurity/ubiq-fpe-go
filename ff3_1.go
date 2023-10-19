@@ -111,7 +111,7 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	}
 
 	for i := 1; i <= 8; i++ {
-		copy(P, Tw[i % 2])
+		copy(P, Tw[i%2])
 
 		if enc {
 			P[3] ^= byte(i - 1)
@@ -139,7 +139,7 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		nA, nB = nB, nA
 
 		// c = A +/- P mod radix**m
-		nB.Mod(nB, mU);
+		nB.Mod(nB, mU)
 		mU, mV = mV, mU
 	}
 
@@ -148,9 +148,11 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	}
 
 	return append(
-		revr(BigIntToRunes(this.ctx.radix, this.ctx.ralph, nA, u)),
-		revr(BigIntToRunes(this.ctx.radix, this.ctx.ralph, nB, v))...),
-	nil
+			revr(BigIntToRunes(
+				this.ctx.radix, this.ctx.ralph, nA, u)),
+			revr(BigIntToRunes(
+				this.ctx.radix, this.ctx.ralph, nB, v))...),
+		nil
 }
 
 func (this *FF3_1) EncryptRunes(X []rune, T []byte) ([]rune, error) {
