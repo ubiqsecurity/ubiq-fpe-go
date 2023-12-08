@@ -1,7 +1,6 @@
 package ubiq
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
@@ -29,6 +28,8 @@ type ffx struct {
 	// the event that nil is specified, this will
 	// be an empty (0-byte) slice
 	twk []byte
+
+	nA, nB, mU, mV, y *big.Int
 }
 
 // allocate a new FFX context
@@ -91,6 +92,12 @@ func newFFX(key, twk []byte,
 	this.twk = make([]byte, len(twk))
 	copy(this.twk[:], twk[:])
 
+	this.nA = big.NewInt(0)
+	this.nB = big.NewInt(0)
+	this.mU = big.NewInt(0)
+	this.mV = big.NewInt(0)
+	this.y = big.NewInt(0)
+
 	return this, nil
 }
 
@@ -102,7 +109,8 @@ func (this *ffx) prf(d, s []byte) error {
 	blockSize := this.block.BlockSize()
 	mode := cipher.NewCBCEncrypter(
 		// IV is always 0's
-		this.block, bytes.Repeat([]byte{0}, blockSize))
+		this.block,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 
 	for i := 0; i < len(s); i += blockSize {
 		mode.CryptBlocks(d, s[i:i+blockSize])
