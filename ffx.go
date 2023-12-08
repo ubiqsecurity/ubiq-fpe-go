@@ -126,18 +126,16 @@ func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 	var R []rune
 	var i int
 
-	R = make([]rune, 0, l)
+	R = make([]rune, l)
 
 	if alpha.Len() <= defaultAlphabet.Len() {
 		s := _n.Text(alpha.Len())
 
-		R = R[:len(s)]
-
 		for i = 0; i < len(s); i++ {
 			if alpha.IsDef() {
-				R[len(R)-i-1] = rune(s[i])
+				R[len(s)-i-1] = rune(s[i])
 			} else {
-				R[len(R)-i-1] = alpha.ValAt(
+				R[len(s)-i-1] = alpha.ValAt(
 					defaultAlphabet.PosOf(rune(s[i])))
 			}
 		}
@@ -149,12 +147,12 @@ func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 		n.Set(_n)
 		for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
 			n.DivMod(n, t, r)
-			R = append(R, alpha.ValAt(int(r.Int64())))
+			R[i] = alpha.ValAt(int(r.Int64()))
 		}
 	}
 
 	for ; i < l; i++ {
-		R = append(R, alpha.ValAt(0))
+		R[i] = alpha.ValAt(0)
 	}
 
 	return revr(R)
