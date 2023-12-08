@@ -149,7 +149,9 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 
 		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 
-		ctx.nB.Mod(ctx.nB, ctx.mU)
+		ctx.y.Mod(ctx.nB, ctx.mU)
+		ctx.y, ctx.nB = ctx.nB, ctx.y
+
 		ctx.mU, ctx.mV = ctx.mV, ctx.mU
 	}
 
