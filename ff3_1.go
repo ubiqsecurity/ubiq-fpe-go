@@ -75,14 +75,11 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		return nil, errors.New("invalid tweak length")
 	}
 
-	P := make([]byte, 16)
-	Tw := make([][]byte, 2)
+	P := [16]byte{}
 
-	Tw[0] = make([]byte, 4)
+	Tw := [2][4]byte{}
 	copy(Tw[0][0:3], T[0:3])
 	Tw[0][3] = T[3] & 0xf0
-
-	Tw[1] = make([]byte, 4)
 	copy(Tw[1][0:3], T[4:7])
 	Tw[1][3] = (T[3] & 0x0f) << 4
 
@@ -94,8 +91,10 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		ctx.mU.Mul(ctx.mU, ctx.y)
 	}
 
-	RunesToBigInt(ctx.nA, &ctx.alpha, revr(X[:u]))
-	RunesToBigInt(ctx.nB, &ctx.alpha, revr(X[u:]))
+	A := revr(X[:u])
+	RunesToBigInt(ctx.nA, &ctx.alpha, A)
+	B := revr(X[u:])
+	RunesToBigInt(ctx.nB, &ctx.alpha, B)
 	if !enc {
 		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 		ctx.mU, ctx.mV = ctx.mV, ctx.mU
@@ -104,7 +103,7 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	}
 
 	for i := 1; i <= 8; i++ {
-		copy(P, Tw[i%2])
+		copy(P[:4], Tw[i%2][:])
 
 		if enc {
 			P[3] ^= byte(i - 1)
@@ -117,12 +116,12 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		// the integer
 		ctx.nB.FillBytes(P[4:16])
 
-		revb(P, P)
-		ctx.ciph(P, P)
-		revb(P, P)
+		revb(P[:], P[:])
+		ctx.ciph(P[:], P[:])
+		revb(P[:], P[:])
 
 		// c = A +/- P
-		ctx.y.SetBytes(P)
+		ctx.y.SetBytes(P[:])
 		if enc {
 			ctx.nA.Add(ctx.nA, ctx.y)
 		} else {
@@ -142,10 +141,12 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 	}
 
-	return append(
-			revr(BigIntToRunes(&ctx.alpha, ctx.nA, u)),
-			revr(BigIntToRunes(&ctx.alpha, ctx.nB, v))...),
-		nil
+	A = BigIntToRunes(&ctx.alpha, ctx.nA, u)
+	_revr(A, A)
+	B = BigIntToRunes(&ctx.alpha, ctx.nB, v)
+	_revr(B, B)
+
+	return append(A, B...), nil
 }
 
 func (this *FF3_1) EncryptRunes(X []rune, T []byte) ([]rune, error) {
