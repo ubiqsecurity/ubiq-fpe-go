@@ -163,7 +163,8 @@ func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 		R[i] = alpha.ValAt(0)
 	}
 
-	return revr(R)
+	_revr(R, R)
+	return R
 }
 
 func RunesToBigInt(n *big.Int, alpha *Alphabet, s []rune) *big.Int {
@@ -214,14 +215,20 @@ func revb(d, s []byte) {
 	}
 }
 
-func revr(s []rune) []rune {
+func _revr(d, s []rune) {
 	var i, j int
-	d := make([]rune, len(s))
+
 	for i, j = 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		d[i], d[j] = s[j], s[i]
 	}
+
 	if i == j {
 		d[i] = s[j]
 	}
+}
+
+func revr(s []rune) []rune {
+	d := make([]rune, len(s))
+	_revr(d, s)
 	return d
 }
