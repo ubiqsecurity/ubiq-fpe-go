@@ -8,12 +8,12 @@ import (
 	"math/big"
 )
 
+var cipherIV = [...]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
 // common structure used by fpe algorithms
 type ffx struct {
-	// aes 128, 192, or 256. depends on key size
-	// mode (cbc) is not specified here. that's done
-	// when the encryption is actually performed
-	block cipher.Block
+	// aes-cbc 128, 192, or 256. depends on key size
+	blockMode cipher.BlockMode
 
 	alpha Alphabet
 
@@ -79,7 +79,7 @@ func newFFX(key, twk []byte,
 
 	this := new(ffx)
 
-	this.block = block
+	this.blockMode = cipher.NewCBCEncrypter(block, cipherIV[:])
 
 	this.alpha, _ = NewAlphabet(string(ralph))
 
@@ -106,14 +106,11 @@ func newFFX(key, twk []byte,
 // text in @d. @d and @s may be the same slice but may not
 // otherwise overlap
 func (this *ffx) prf(d, s []byte) error {
-	blockSize := this.block.BlockSize()
-	mode := cipher.NewCBCEncrypter(
-		// IV is always 0's
-		this.block,
-		[]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+	blockSize := this.blockMode.BlockSize()
+	(this.blockMode.(interface{ SetIV([]byte) })).SetIV(cipherIV[:])
 
 	for i := 0; i < len(s); i += blockSize {
-		mode.CryptBlocks(d, s[i:i+blockSize])
+		this.blockMode.CryptBlocks(d, s[i:i+blockSize])
 	}
 
 	return nil
