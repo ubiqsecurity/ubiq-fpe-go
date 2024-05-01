@@ -3,7 +3,6 @@ package ubiq
 import (
 	"errors"
 	"math"
-	"math/big"
 )
 
 // Context structure for the FF3-1 FPE algorithm
@@ -56,7 +55,7 @@ func NewFF3_1(key, twk []byte, radix int, args ...interface{}) (*FF3_1, error) {
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
 func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
-	var nA, nB, mU, mV, y *big.Int
+	ctx := this.ctx
 
 	n := len(X)
 	v := n / 2
@@ -64,54 +63,47 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 
 	// use the default tweak if none is specified
 	if T == nil {
-		T = this.ctx.twk
+		T = ctx.twk
 	}
 
-	if n < this.ctx.len.txt.min ||
-		n > this.ctx.len.txt.max {
+	if n < ctx.len.txt.min ||
+		n > ctx.len.txt.max {
 		return nil, errors.New("invalid text length")
-	} else if len(T) < this.ctx.len.twk.min ||
-		(this.ctx.len.twk.max > 0 &&
-			len(T) > this.ctx.len.twk.max) {
+	} else if len(T) < ctx.len.twk.min ||
+		(ctx.len.twk.max > 0 &&
+			len(T) > ctx.len.twk.max) {
 		return nil, errors.New("invalid tweak length")
 	}
 
-	nA = big.NewInt(0)
-	nB = big.NewInt(0)
-	mU = big.NewInt(0)
-	mV = big.NewInt(0)
-	y = big.NewInt(0)
+	P := [16]byte{}
 
-	P := make([]byte, 16)
-	Tw := make([][]byte, 2)
-
-	Tw[0] = make([]byte, 4)
+	Tw := [2][4]byte{}
 	copy(Tw[0][0:3], T[0:3])
 	Tw[0][3] = T[3] & 0xf0
-
-	Tw[1] = make([]byte, 4)
 	copy(Tw[1][0:3], T[4:7])
 	Tw[1][3] = (T[3] & 0x0f) << 4
 
-	y.SetUint64(uint64(this.ctx.radix))
-	mV.SetUint64(uint64(v))
-	mV.Exp(y, mV, nil)
-	mU.Set(mV)
+	ctx.y.SetUint64(uint64(ctx.alpha.Len()))
+	ctx.mV.SetUint64(uint64(v))
+	ctx.mV.Exp(ctx.y, ctx.mV, nil)
+	ctx.mU.Set(ctx.mV)
 	if v != u {
-		mU.Mul(mU, y)
+		ctx.mU.Mul(ctx.mU, ctx.y)
 	}
 
-	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, revr(X[:u]))
-	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, revr(X[u:]))
+	A := revr(X[:u])
+	RunesToBigInt(ctx.nA, &ctx.alpha, A)
+	B := revr(X[u:])
+	RunesToBigInt(ctx.nB, &ctx.alpha, B)
 	if !enc {
-		nA, nB = nB, nA
-		mU, mV = mV, mU
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
+		ctx.mU, ctx.mV = ctx.mV, ctx.mU
 
 		Tw[0], Tw[1] = Tw[1], Tw[0]
 	}
 
 	for i := 1; i <= 8; i++ {
-		copy(P, Tw[i%2])
+		copy(P[:4], Tw[i%2][:])
 
 		if enc {
 			P[3] ^= byte(i - 1)
@@ -122,37 +114,39 @@ func (this *FF3_1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 		// export B's numeral string
 		// to the underlying byte representation of
 		// the integer
-		nB.FillBytes(P[4:16])
+		ctx.nB.FillBytes(P[4:16])
 
-		revb(P, P)
-		this.ctx.ciph(P, P)
-		revb(P, P)
+		revb(P[:], P[:])
+		ctx.ciph(P[:], P[:])
+		revb(P[:], P[:])
 
 		// c = A +/- P
-		y.SetBytes(P)
+		ctx.y.SetBytes(P[:])
 		if enc {
-			nA.Add(nA, y)
+			ctx.nA.Add(ctx.nA, ctx.y)
 		} else {
-			nA.Sub(nA, y)
+			ctx.nA.Sub(ctx.nA, ctx.y)
 		}
 
-		nA, nB = nB, nA
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 
 		// c = A +/- P mod radix**m
-		nB.Mod(nB, mU)
-		mU, mV = mV, mU
+		ctx.y.Mod(ctx.nB, ctx.mU)
+		ctx.y, ctx.nB = ctx.nB, ctx.y
+
+		ctx.mU, ctx.mV = ctx.mV, ctx.mU
 	}
 
 	if !enc {
-		nA, nB = nB, nA
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 	}
 
-	return append(
-			revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nA, u)),
-			revr(BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nB, v))...),
-		nil
+	A = BigIntToRunes(&ctx.alpha, ctx.nA, u)
+	_revr(A, A)
+	B = BigIntToRunes(&ctx.alpha, ctx.nB, v)
+	_revr(B, B)
+
+	return append(A, B...), nil
 }
 
 func (this *FF3_1) EncryptRunes(X []rune, T []byte) ([]rune, error) {

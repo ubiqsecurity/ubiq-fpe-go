@@ -1,7 +1,6 @@
 package ubiq
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
@@ -9,15 +8,14 @@ import (
 	"math/big"
 )
 
+var cipherIV = [...]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
 // common structure used by fpe algorithms
 type ffx struct {
-	// aes 128, 192, or 256. depends on key size
-	// mode (cbc) is not specified here. that's done
-	// when the encryption is actually performed
-	block cipher.Block
+	// aes-cbc 128, 192, or 256. depends on key size
+	blockMode cipher.BlockMode
 
-	radix int
-	ralph []rune
+	alpha Alphabet
 
 	// minimum and maximum lengths allowed for
 	// {plain,cipher}text and tweaks
@@ -30,6 +28,8 @@ type ffx struct {
 	// the event that nil is specified, this will
 	// be an empty (0-byte) slice
 	twk []byte
+
+	nA, nB, mU, mV, y *big.Int
 }
 
 // allocate a new FFX context
@@ -38,16 +38,16 @@ type ffx struct {
 func newFFX(key, twk []byte,
 	maxtxt, mintwk, maxtwk, radix int,
 	args ...interface{}) (*ffx, error) {
-	var alpha string = "0123456789abcdefghijklmnopqrstuvwxyz"
-	var ralph []rune = []rune(alpha)
-
+	alpha := defaultAlphabetStr
 	if len(args) > 0 {
-		ralph = []rune(args[0].(string))
+		alpha = args[0].(string)
 	}
 
+	ralph := []rune(alpha)
 	if radix < 2 || radix > len(ralph) {
 		return nil, errors.New("unsupported radix")
 	}
+	ralph = ralph[:radix]
 
 	// for both ff1 and ff3-1: radix**minlen >= 1000000
 	//
@@ -79,10 +79,9 @@ func newFFX(key, twk []byte,
 
 	this := new(ffx)
 
-	this.block = block
+	this.blockMode = cipher.NewCBCEncrypter(block, cipherIV[:])
 
-	this.radix = radix
-	this.ralph = ralph
+	this.alpha, _ = NewAlphabet(string(ralph))
 
 	this.len.txt.min = mintxt
 	this.len.txt.max = maxtxt
@@ -93,6 +92,12 @@ func newFFX(key, twk []byte,
 	this.twk = make([]byte, len(twk))
 	copy(this.twk[:], twk[:])
 
+	this.nA = big.NewInt(0)
+	this.nB = big.NewInt(0)
+	this.mU = big.NewInt(0)
+	this.mV = big.NewInt(0)
+	this.y = big.NewInt(0)
+
 	return this, nil
 }
 
@@ -101,13 +106,11 @@ func newFFX(key, twk []byte,
 // text in @d. @d and @s may be the same slice but may not
 // otherwise overlap
 func (this *ffx) prf(d, s []byte) error {
-	blockSize := this.block.BlockSize()
-	mode := cipher.NewCBCEncrypter(
-		// IV is always 0's
-		this.block, bytes.Repeat([]byte{0}, blockSize))
+	blockSize := this.blockMode.BlockSize()
+	(this.blockMode.(interface{ SetIV([]byte) })).SetIV(cipherIV[:])
 
 	for i := 0; i < len(s); i += blockSize {
-		mode.CryptBlocks(d, s[i:i+blockSize])
+		this.blockMode.CryptBlocks(d, s[i:i+blockSize])
 	}
 
 	return nil
@@ -124,48 +127,74 @@ func (this *ffx) ciph(d, s []byte) error {
 
 // convert a big integer to an array of runes in the specified radix,
 // padding the output to the left with 0's
-func BigIntToRunes(radix int, ralph []rune, _n *big.Int, l int) []rune {
-	var n *big.Int = big.NewInt(0)
-	var r *big.Int = big.NewInt(0)
-	var t *big.Int = big.NewInt(int64(radix))
-
+func BigIntToRunes(alpha *Alphabet, _n *big.Int, l int) []rune {
 	var R []rune
 	var i int
 
-	n.Set(_n)
-	for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
-		n.DivMod(n, t, r)
-		R = append(R, ralph[r.Int64()])
+	R = make([]rune, l)
+
+	if alpha.Len() <= defaultAlphabet.Len() {
+		s := _n.Text(alpha.Len())
+
+		for i = 0; i < len(s); i++ {
+			if alpha.IsDef() {
+				R[len(s)-i-1] = rune(s[i])
+			} else {
+				R[len(s)-i-1] = alpha.ValAt(
+					defaultAlphabet.PosOf(rune(s[i])))
+			}
+		}
+	} else {
+		var n *big.Int = big.NewInt(0)
+		var r *big.Int = big.NewInt(0)
+		var t *big.Int = big.NewInt(int64(alpha.Len()))
+
+		n.Set(_n)
+		for i = 0; !n.IsInt64() || n.Int64() != 0; i++ {
+			n.DivMod(n, t, r)
+			R[i] = alpha.ValAt(int(r.Int64()))
+		}
 	}
 
 	for ; i < l; i++ {
-		R = append(R, ralph[0])
+		R[i] = alpha.ValAt(0)
 	}
 
-	return revr(R)
+	_revr(R, R)
+	return R
 }
 
-func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
-	var m *big.Int = big.NewInt(1)
-	var t *big.Int = big.NewInt(0)
+func RunesToBigInt(n *big.Int, alpha *Alphabet, s []rune) *big.Int {
+	if alpha.Len() <= defaultAlphabet.Len() {
+		b := make([]byte, len(s))
 
-	n.SetInt64(0)
-
-	for _, r := range revr(s) {
-		// n += (m * i)
-		for i, _ := range ralph {
-			if ralph[i] == r {
-				t.SetInt64(int64(i))
-				break
+		for i, _ := range s {
+			if alpha.IsDef() {
+				b[i] = byte(s[i])
+			} else {
+				b[i] = byte(defaultAlphabet.ValAt(
+					alpha.PosOf(s[i])))
 			}
 		}
 
-		t.Mul(t, m)
-		n.Add(n, t)
+		n.SetString(string(b), alpha.Len())
+	} else {
+		var m *big.Int = big.NewInt(1)
+		var t *big.Int = big.NewInt(0)
 
-		// m *= rad
-		t.SetInt64(int64(radix))
-		m.Mul(m, t)
+		n.SetInt64(0)
+
+		for _, r := range revr(s) {
+			// n += (m * i)
+			t.SetInt64(int64(alpha.PosOf(r)))
+
+			t.Mul(t, m)
+			n.Add(n, t)
+
+			// m *= rad
+			t.SetInt64(int64(alpha.Len()))
+			m.Mul(m, t)
+		}
 	}
 
 	return n
@@ -174,14 +203,29 @@ func RunesToBigInt(n *big.Int, radix int, ralph, s []rune) *big.Int {
 // reverse the bytes in a slice. @d and @s may be the
 // same slice but may not otherwise overlap
 func revb(d, s []byte) {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+	var i, j int
+	for i, j = 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		d[i], d[j] = s[j], s[i]
+	}
+	if i == j {
+		d[i] = s[j]
 	}
 }
 
-func revr(r []rune) []rune {
-	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
-		r[i], r[j] = r[j], r[i]
+func _revr(d, s []rune) {
+	var i, j int
+
+	for i, j = 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		d[i], d[j] = s[j], s[i]
 	}
-	return r
+
+	if i == j {
+		d[i] = s[j]
+	}
+}
+
+func revr(s []rune) []rune {
+	d := make([]rune, len(s))
+	_revr(d, s)
+	return d
 }

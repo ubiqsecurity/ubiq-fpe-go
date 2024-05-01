@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
-	"math/big"
 )
 
 // Context structure for FF1 FPE algorithm
@@ -49,25 +48,21 @@ func NewFF1(key, twk []byte, mintwk, maxtwk, radix int, args ...interface{}) (
 // The comments below reference the steps of the algorithm described here:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-38Gr1-draft.pdf
 func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
-	var nA, nB, mU, mV, y *big.Int
+	var radix int = this.ctx.alpha.Len()
 
-	nA = big.NewInt(0)
-	nB = big.NewInt(0)
-	mU = big.NewInt(0)
-	mV = big.NewInt(0)
-	y = big.NewInt(0)
+	ctx := this.ctx
 
 	n := len(X)
 	u := n / 2
 	v := n - u
 
 	b := int(math.Ceil(math.Log2(
-		float64(this.ctx.radix))*float64(v))+7) / 8
+		float64(radix))*float64(v))+7) / 8
 	d := 4*((b+3)/4) + 4
 
 	// use default tweak if none is specified
 	if T == nil {
-		T = this.ctx.twk
+		T = ctx.twk
 	}
 
 	// P and Q are independently filled-in/populated, but
@@ -79,12 +74,12 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	Q := P[16:]
 	R := make([]byte, ((d+15)/16)*16)
 
-	if n < this.ctx.len.txt.min ||
-		n > this.ctx.len.txt.max {
+	if n < ctx.len.txt.min ||
+		n > ctx.len.txt.max {
 		return nil, errors.New("invalid text length")
-	} else if len(T) < this.ctx.len.twk.min ||
-		(this.ctx.len.twk.max > 0 &&
-			len(T) > this.ctx.len.twk.max) {
+	} else if len(T) < ctx.len.twk.min ||
+		(ctx.len.twk.max > 0 &&
+			len(T) > ctx.len.twk.max) {
 		return nil, errors.New("invalid tweak length")
 	}
 
@@ -94,7 +89,7 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	// in the 8 bits that are placed there (the upper 8 bits of the
 	// radix), so that byte is subsequently overwritten with the
 	// hard-coded value of one (specified by the algorithm)
-	binary.BigEndian.PutUint32(P[2:6], uint32(this.ctx.radix))
+	binary.BigEndian.PutUint32(P[2:6], uint32(radix))
 	P[2] = 1
 	P[6] = 10
 	P[7] = byte(u)
@@ -105,19 +100,19 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 	copy(Q, bytes.Repeat([]byte{0}, len(Q)))
 	copy(Q, T)
 
-	y.SetUint64(uint64(this.ctx.radix))
-	mU.SetUint64(uint64(u))
-	mU.Exp(y, mU, nil)
-	mV.Set(mU)
+	ctx.y.SetUint64(uint64(radix))
+	ctx.mU.SetUint64(uint64(u))
+	ctx.mU.Exp(ctx.y, ctx.mU, nil)
+	ctx.mV.Set(ctx.mU)
 	if u != v {
-		mV.Mul(mV, y)
+		ctx.mV.Mul(ctx.mV, ctx.y)
 	}
 
-	RunesToBigInt(nA, this.ctx.radix, this.ctx.ralph, X[:u])
-	RunesToBigInt(nB, this.ctx.radix, this.ctx.ralph, X[u:])
+	RunesToBigInt(ctx.nA, &ctx.alpha, X[:u])
+	RunesToBigInt(ctx.nB, &ctx.alpha, X[u:])
 	if !enc {
-		nA, nB = nB, nA
-		mU, mV = mV, mU
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
+		ctx.mU, ctx.mV = ctx.mV, ctx.mU
 	}
 
 	for i := 0; i < 10; i++ {
@@ -127,8 +122,8 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 			Q[len(Q)-b-1] = byte(9 - i)
 		}
 
-		nB.FillBytes(Q[len(Q)-b:])
-		this.ctx.prf(R[0:16], P)
+		ctx.nB.FillBytes(Q[len(Q)-b:])
+		ctx.prf(R[0:16], P)
 
 		// if R is longer than 16 bytes, fill the 2nd and
 		// subsequent 16 byte blocks with the result of
@@ -138,35 +133,35 @@ func (this *FF1) cipher(X []rune, T []byte, enc bool) ([]rune, error) {
 			w := binary.BigEndian.Uint32(R[12:16])
 
 			binary.BigEndian.PutUint32(R[12:16], w^uint32(j))
-			this.ctx.ciph(R[l:l+16], R[:16])
+			ctx.ciph(R[l:l+16], R[:16])
 			binary.BigEndian.PutUint32(R[12:16], uint32(w))
 		}
 
 		// create an integer from the first d bytes of R
-		y.SetBytes(R[:d])
+		ctx.y.SetBytes(R[:d])
 
 		// c = A +/- R
 		if enc {
-			nA.Add(nA, y)
+			ctx.nA.Add(ctx.nA, ctx.y)
 		} else {
-			nA.Sub(nA, y)
+			ctx.nA.Sub(ctx.nA, ctx.y)
 		}
 
-		nA, nB = nB, nA
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 
-		nB.Mod(nB, mU)
-		mU, mV = mV, mU
+		ctx.y.Mod(ctx.nB, ctx.mU)
+		ctx.y, ctx.nB = ctx.nB, ctx.y
+
+		ctx.mU, ctx.mV = ctx.mV, ctx.mU
 	}
 
 	if !enc {
-		nA, nB = nB, nA
+		ctx.nA, ctx.nB = ctx.nB, ctx.nA
 	}
 
 	return append(
-			BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nA, u),
-			BigIntToRunes(
-				this.ctx.radix, this.ctx.ralph, nB, v)...),
+			BigIntToRunes(&ctx.alpha, ctx.nA, u),
+			BigIntToRunes(&ctx.alpha, ctx.nB, v)...),
 		nil
 }
 
