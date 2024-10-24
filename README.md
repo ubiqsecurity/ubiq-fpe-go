@@ -1,5 +1,7 @@
 # Format Preserving Encryption in Go
 
+**The Ubiq Structured (Format Preserving Encryption) Library has been merged into the core [Ubiq Go Library](https://gitlab.com/ubiqsecurity/ubiq-go) to improve supportability and maintainability. This package has been deprecated and is no longer supported.**
+
 An implementation of the NIST-approved FF1 and FF3-1 algorithms in Go.
 
 This implementation conforms (as best as possible) to
